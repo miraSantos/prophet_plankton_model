@@ -1,0 +1,14 @@
+data_path: "datasets/df_merged_daily_phyto_2022-10-21.csv"
+wandb_mode: "disabled"
+dependent: "synconc"
+
+#transformation
+take_log: false
+take_cube_root: true
+take_exp: false
+
+
+predictor: ["temp"]
+train_size: 0.5
+res_path: "results/"
+temp: true

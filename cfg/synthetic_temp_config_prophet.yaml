@@ -1,0 +1,14 @@
+data_path: "datasets/synthetic/temp_conc_10Dec2022.csv"
+wandb_mode: "disabled"
+dependent: "dependent"
+
+#transformation
+take_log: false
+take_cube_root: true
+take_exp: false
+
+
+predictor: "temp"
+train_size: 0.5
+res_path: "results/"
+temp: false
