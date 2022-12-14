@@ -1,0 +1,4 @@
+wandb: Creating sweep from: cfg/sweep/prophet_sweep_local.yaml
+wandb: Created sweep with ID: o1kyugzl
+wandb: View sweep at: https://wandb.ai/mira_thesis/prophet_sweep/sweeps/o1kyugzl
+wandb: Run sweep agent with: wandb agent mira_thesis/prophet_sweep/o1kyugzl

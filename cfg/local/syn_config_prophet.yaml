@@ -11,4 +11,8 @@ take_exp: false
 predictor: ["temp"]
 train_size: 0.5
 res_path: "results/"
-temp: true
+temp: false
+
+changepoint_prior_scale: 0.1
+
+cap: 50

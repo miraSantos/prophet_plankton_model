@@ -1,23 +1,41 @@
+import os, sys
+sys.path.append(os.getcwd())
+from utils.forecasting_metrics import *
 import argparse
 import yaml
 import pandas as pd
-import numpy as np
 from prophet import Prophet
-from prophet.diagnostics import cross_validation
-from prophet.plot import plot_cross_validation_metric
 import wandb  # library for tracking and visualization
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from evaluation.forecasting_metrics import *
 from PIL import Image
 import seaborn as sns
+
+import numpy as np
+
+
+def evaluate(actual: np.ndarray, predicted: np.ndarray, metrics=('mae', 'mse', 'smape', 'umbrae')):
+    results = {}
+    for name in metrics:
+        try:
+            results[name] = METRICS[name](actual, predicted)
+        except Exception as err:
+            results[name] = np.nan
+            print('Unable to compute metric {0}: {1}'.format(name, err))
+    return results
+
+
+def evaluate_all(actual: np.ndarray, predicted: np.ndarray):
+    return evaluate(actual, predicted, metrics=set(METRICS.keys()))
+
+
 
 def main_sweep(config):
     train_end = len(dfsubset["y"])*config["train_size"]
     print("main_sweep")
     print(dfsubset[["ds","y"]])
-    m = Prophet(weekly_seasonality=False,daily_seasonality=False,changepoint_prior_scale=0.3)
-    # m.add_seasonality(name='season', period=90, fourier_order=5)
+    m = Prophet(weekly_seasonality=False,daily_seasonality=False,changepoint_prior_scale=0.8, growth="flat")
+    m.add_seasonality(name='season', period=90, fourier_order=8)
 
     if config["temp"]:
         m.add_regressor('temp')
@@ -26,8 +44,9 @@ def main_sweep(config):
         future = future.merge(dfsubset.loc[:len(future), ["ds", "temp"]], on="ds", how="inner")
 
     if config["temp"] == False:
-        m.fit(dfsubset.loc[:train_end,["ds","y"]])
+        m.fit(dfsubset.loc[:train_end,["ds","y","cap"]])
         future = m.make_future_dataframe(periods=len(dfsubset.ds), include_history=True)
+        future['cap'] = cap
 
     forecast = m.predict(future)
     print(forecast.head())
@@ -64,13 +83,11 @@ def main_sweep(config):
     ax[1].set_title("Prophet forecast by day of year: " +  str(config["dependent"]))
     ax[1].legend()
     ax[1].grid()
-    plt.show()
 
     eval_img = config["res_path"] + "/" + config["dependent"] + "/full_timeseries_train_size_" + str(config["train_size"]) + '.png'
     fig.savefig(eval_img)
     wandb.save(eval_img)
     im = Image.open(eval_img)
-    plt.show()
     wandb.log({"Full Timeseries Evaluation": wandb.Image(im)})
 
 
@@ -91,13 +108,11 @@ def main_sweep(config):
     ax[1].set_title("Violin Plot of Predictive Check")
     # ax.set_ylim(0,14)
     ax[1].grid()
-    plt.show()
 
     eval_img = config["res_path"] + "/" + config["dependent"] + "/violin_train_size_" + str(config["train_size"]) + '.png'
     fig.savefig(eval_img)
     wandb.save(eval_img)
     im = Image.open(eval_img)
-    plt.show()
     wandb.log({"Violin Plot": wandb.Image(im)})
 
     #FORECAST COMPONENTS
@@ -108,13 +123,12 @@ def main_sweep(config):
     fig.savefig(eval_img)
     wandb.save(eval_img)
     im = Image.open(eval_img)
-    plt.show()
     wandb.log({"Forecast Components": wandb.Image(im)})
 
     print("mean error: "+ str(me(actual , predicted)))
     print("mean average percentage error: ", str(mape(actual,predicted)))
     print("relative absolute error: ", str(rae(actual,predicted)))
-    # print("mean directional accuracy: ", str(mda(actual,predicted)))
+    print("mean directional accuracy: ", str(mda(actual,predicted)))
     # print("mean average scaled error" , str(mase(actual,predicted,seasonality=360)))
 
     plt.close()
@@ -124,8 +138,8 @@ def main_sweep(config):
         'mean_error': me(actual, predicted),
         'rel_abs_error': rae(actual, predicted),
         'mean_avg_per_error': mape(actual, predicted),
-        'rt_sq_mean_error': rmse(actual, predicted),
-        'mean_dir_acc': mda(actual, predicted),
+        'rt_sq_mean_error': rmse(actual, predicted)
+        # 'mean_dir_acc': mda(actual, predicted)
         # 'mean_absolute_scaled_error': mase(actual, predicted, seasonality=360)
     })
 
@@ -139,11 +153,13 @@ if __name__ == '__main__':
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     wandb.login()
+    run = wandb.init(mode=config["wandb_mode"],config = config)
     df = pd.read_csv(config["data_path"], low_memory=False)
     df.loc[:, 'date'] = pd.to_datetime(df.loc[:, 'date'], format="%Y-%m-%d")  # required or else dates start at 1971! (WEIRD BUG HERE)
     df.loc[:,"month"] = df.date.dt.month
     df.loc[:,"doy_numeric"] = df.date.dt.dayofyear
 
+    cap = config["cap"]
     if config["dependent"] == "diatomBiovol":
         df = df[df.diatomBiovol <= 1e7]
 
@@ -155,7 +171,7 @@ if __name__ == '__main__':
         dfsubset = df.dropna(subset=[config["dependent"]])
 
     dfsubset.rename(columns={'date': 'ds', config["dependent"]: 'y', 'Beam_temperature_corrected':'temp' ,'AvgSolar': 'light'}, inplace=True)
-
+    dfsubset["cap"] = cap
 
     # TRANSFORMATIONS
     if config["take_log"] and config["take_cube_root"]:

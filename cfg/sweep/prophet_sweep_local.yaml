@@ -1,40 +1,19 @@
-program: train/prophet_sweep.py
+program: sweep/prophet_sweep.py
 name: "Prophet Sweep Syn"
-method: bayes
+method: random
 metric:
   name: rel_abs_error
   goal: minimize
 
 parameters:
-  lr:
-    value: 0.1
-  mixtures:
-    min: 50
-    max: 500
-  train_size:
-    min: 0.1
-    max: 0.2
-  train_iter:
-    value: 200
-  better_lower_bound:
-    value: 0.00001
-  num_dims:
-    value: 1
-  noise_value:
-    value: 0.01
-  noise_prior_loc:
-    value: 0.0
-  noise_prior_scale:
-    value:  0.01
-  optimizer:
-    values: ["adam", "sgd"]
-  seasonality:
-    value: 365
+  changepoint_prior_scale:
+    min: 0
+    max: 1
 
 command:
   - ${env}
   - ${interpreter}
   - ${program}
   - "--cfg"
-  - "cfg/syn_config_prophet.yaml"
+  - "cfg/local/synthetic_temp_config_prophet.yaml"
 
